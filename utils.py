@@ -4,6 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.animation as animation
+from scipy.stats import truncnorm
 import pdb
 import random
 
@@ -56,7 +57,11 @@ def init_f(G,g,mode=None, epsilon = None, E_1 = None):
     if mode=='epsilon':
         if epsilon is None:
             epsilon = 0.70
-        f= {v:(1+np.random.uniform(low = -epsilon, high = epsilon))*distances[v] for v in G.nodes()}
+        # set std = eps/2
+        # truncate 2 std to the left of 0, and 2 std to the right of 0. 
+        eps_v = truncnorm.rvs( a = -2, b = 2,scale = epsilon/2, size=G.number_of_nodes())
+        #pdb.set_trace()
+        f= {v:(1+eps_v[idx])*distances[v] for idx,v in enumerate(G.nodes())}
     if mode=='additive':
         n = G.number_of_nodes()
         if E_1 is None:
@@ -115,7 +120,7 @@ def audit_predictions(f,G,g,mode=None, epsilon = None, E_1 = None):
         return np.all([e < 0  for e in errors]) and np.isclose(np.sum(np.abs(errors)),E_1)
 
 # -------------------------------------------------------------------
-# SEARCHING STRATEGIES ----------------------------------------------
+# EXPLORATION STRATEGIES --------------------------------------------
 # -------------------------------------------------------------------
 
 def run_local_search(instance, verbose = False):
@@ -186,6 +191,7 @@ def run_naive_greedy_search(instance, verbose = False):
         print(f"goal was:{instance.goal} \n visited nodes: {instance.visited_nodes} \n total cost:{instance.cost_to_date} ")
         animate_trajectory(instance)
     return 
+
 # -------------------------------------------------------------------
 # PLOTTING METHODS --------------------------------------------------
 # -------------------------------------------------------------------
@@ -207,6 +213,35 @@ def plot_trajectory(visited_nodes,G):
             colors.append('#000000ff')
     nx.draw(G, node_color = colors, labels = labels)
     plt.show()
+    return
+
+def plot_trajectory_with_predictions(visited_nodes,f,G,r,g, ax = None, pos = None):
+    labels = dict()
+    colors = list()
+
+    pred_vals = list(f.values())
+    max_f = max(pred_vals); min_f = min(pred_vals)
+    for v in G.nodes():
+        if v in visited_nodes:
+            if v==r:
+                labels[v]='r'
+            elif v==g:
+                labels[v]='g'
+            else:
+                labels[v] = str(visited_nodes.index(v))
+            colors.append(get_color(f[v], min = min_f, max = max_f))
+        else:
+            labels[v] = ''
+            colors.append(get_color(f[v], min = min_f, max = max_f))
+    if ax is None:
+        plt.figure(figsize = (7, 5))
+        nx.draw(G, node_color = colors, labels = labels, pos = pos, font_size=  10)
+        sm = plt.cm.ScalarMappable(cmap=cm.cool, norm=plt.Normalize(vmin = min_f, vmax=max_f))
+        sm._A = []
+        plt.colorbar(sm, shrink = 0.9)
+        plt.show()
+    else:
+        nx.draw(G, node_color = colors, labels = labels, pos = pos, ax = ax, font_size=  10)
     return
 
 def animate_trajectory(instance):
@@ -255,10 +290,34 @@ def visualize_predictions(f,G,g,r):
             node_colors.append(get_color(50, min = 0, max = 100))
     nx.draw(G, node_color = node_colors, labels = {v:str(np.around(f[v], decimals = 1)) for v in G.nodes()})
     plt.show()
+
 # -------------------------------------------------------------------
 # BASIC TESTS -------------------------------------------------------
 # -------------------------------------------------------------------
 
+def build_basic_graph(n = 100, type='erdos_renyi'):
+    if type=='erdos_renyi':
+        connected = False
+        while not connected:
+            G = nx.erdos_renyi_graph(n, p = 0.1)
+            connected = nx.is_connected(G)
+        # add basic uniform weights
+        weights = {e:1 for e in G.edges()} 
+
+    elif type=='random_tree':
+        G = nx.random_tree(n)
+        # add basic uniform weights
+        weights = {e:1 for e in G.edges()} 
+
+    elif type=='tree':
+        G = nx.full_rary_tree(2, 15)
+        # add basic uniform weights
+        weights = {e:1 for e in G.edges()} 
+
+    for e in G.edges():
+        G[e[0]][e[1]]['weight'] = weights[e]
+    return G
+        
 def run_test():
     # Simple test: uniform weights
     G = nx.full_rary_tree(2, 15)

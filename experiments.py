@@ -2,11 +2,15 @@ import numpy as np
 import networkx as nx
 from networkx.algorithms import tournament
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import random
 import copy
 import pdb
 
-from utils import graph_search_instance, init_f, visualize_predictions, audit_predictions, run_local_search, run_weighted_local_search, run_random_search, run_naive_greedy_search
+from utils import graph_search_instance, init_f, visualize_predictions, plot_trajectory_with_predictions, build_basic_graph,\
+    audit_predictions, run_local_search, run_weighted_local_search, run_random_search, run_naive_greedy_search
+
+from modified_a_star import astar_visited 
 
 # -------------------------------------------------------------------
 # ADVERSARIAL PREDICTIONS -------------------------------------------
@@ -52,22 +56,7 @@ def adversarial_f(G,r,g,mode=None, epsilon = None, E_1 = None):
 # COMPARING STRATEGIES ----------------------------------------------
 # -------------------------------------------------------------------
 
-def build_basic_graph(n = 100, type='erdos_renyi'):
-    if type=='erdos_renyi':
-        connected = False
-        while not connected:
-            G = nx.erdos_renyi_graph(n, p = 0.1)
-            connected = nx.is_connected(G)
-    elif type=='tree':
-        G = nx.full_rary_tree(2, 15)
-
-    # add basic uniform weights
-    weights = {e:1 for e in G.edges()} 
-    for e in G.edges():
-        G[e[0]][e[1]]['weight'] = weights[e]
-    return G
-        
-def compare_strategies(mode, graph_generator, f_generator, num_trials, f_auditor = None, verbose=False):
+def compare_strategies(mode, graph_generator, f_generator, num_trials, min_r_g_sep = None, f_auditor = None, verbose=False):
     local_cost = list()
     weighted_local_cost = list()
     naive_greedy_cost = list()
@@ -76,12 +65,15 @@ def compare_strategies(mode, graph_generator, f_generator, num_trials, f_auditor
         
         # identify root and goal
         node_list = list(G.nodes())
-        r = node_list[0]
-        g = node_list[-1]
+        r, g = random.sample(node_list, k=2)
 
         # a "typical" instance shouldn't have r and g connected:
-        while (g in G.neighbors(r)) or (g==r):
-            g = random.choice(node_list)
+        if not (min_r_g_sep is None):
+            while nx.shortest_path_length(G,source=r, target=g, weight="weight") < min_r_g_sep:
+                g = random.choice(node_list)
+        else:
+            while (g in G.neighbors(r)) or (g==r):
+                g = random.choice(node_list)
 
         f = f_generator(G, r, g)
         if not (f_auditor is None):
@@ -98,6 +90,9 @@ def compare_strategies(mode, graph_generator, f_generator, num_trials, f_auditor
             if mode=='additive_cost':
                 additive_cost = tester.cost_to_date - nx.shortest_path_length(tester.G,source=r, target=g, weight="weight")
                 cost_list.append(additive_cost)
+            if mode=='ALG-OPT/OPT':
+                opt = nx.shortest_path_length(tester.G,source=r, target=g, weight="weight")
+                cost_list.append((tester.cost_to_date-opt)/opt)
 
     if verbose:   
         for strategy_name, cost_list in [('local search', local_cost), ('weighted local search', weighted_local_cost),
@@ -291,26 +286,138 @@ def demonstrate_random_vs_adversarial_error_additive_E1(n, num_trials, E_1_list,
         adversarial_f_generator = lambda G, r, g: adversarial_f(G, r, g, mode = 'additive', E_1 = E_1)
 
         for stat_list, f_generator in [(random_local_stats, random_f_generator), (adversarial_local_stats, adversarial_f_generator)]:
-            local_tuple, _, _ = compare_strategies('additive_cost', graph_generator, f_generator, num_trials, verbose=False)
+            local_tuple, _, _ = compare_strategies('ALG-OPT/OPT', graph_generator, f_generator, num_trials, verbose=False)
             stat_list.append(local_tuple)
     
     plt.figure()
-    for f_type, stat_list in [('random E1 errors', random_local_stats), ('challenging E1 errors', adversarial_local_stats)]:
+    for f_type, stat_list in [('random E1 errors', random_local_stats), ('random adversarial E1 errors', adversarial_local_stats)]:
         means, stds = [list(tup) for tup in zip(*stat_list)]
         plt.plot(E_1_list, means, linestyle = '-', marker = 'o', label=f_type)
         plt.fill_between(E_1_list, np.subtract(means, stds), np.add(means, stds), alpha = 0.5)
     #plt.yscale('symlog')
-    plt.ylabel('ALG - OPT')
+    plt.ylabel('(ALG - OPT)/OPT')
     plt.xlabel('E1 Error')
     if not (titlestring is None):
         plt.title(titlestring)
     plt.legend()
     plt.show()
 
+def demonstrate_random_vs_adversarial_error_multiplicative_epsilon(n, num_trials, eps_list, titlestring = None):
+    random_local_stats = list()
+    adversarial_local_stats = list()
 
-# num_trials = 200
+    minimum_opt_val = int(1/min([e for e in eps_list if e > 0]))
+    assert minimum_opt_val < n/2
+
+    for epsilon in eps_list:
+        graph_generator = lambda: build_basic_graph(n = n, type = 'random_tree')
+        random_f_generator = lambda G, r, g: init_f(G,g,mode='epsilon', epsilon= epsilon)
+        adversarial_f_generator = lambda G, r, g: adversarial_f(G, r, g, mode = 'epsilon', epsilon= epsilon)
+
+        for stat_list, f_generator in [(random_local_stats, random_f_generator), (adversarial_local_stats, adversarial_f_generator)]:
+            _, weighted_local_tuple, _= compare_strategies('competitive_ratio', graph_generator, f_generator, num_trials,
+                                                 min_r_g_sep = minimum_opt_val, verbose=False)
+            stat_list.append(weighted_local_tuple)
+    
+    plt.figure()
+    for f_type, stat_list in [('random epsilon errors', random_local_stats), ('random adversarial epsilon errors', adversarial_local_stats)]:
+        means, stds = [list(tup) for tup in zip(*stat_list)]
+        plt.plot(eps_list, means, linestyle = '-', marker = 'o', label=f_type)
+        plt.fill_between(eps_list, np.subtract(means, stds), np.add(means, stds), alpha = 0.5)
+    #plt.yscale('symlog')
+    plt.ylabel('ALG/OPT')
+    plt.xlabel('epsilon bound')
+    if not (titlestring is None):
+        plt.title(titlestring)
+    plt.legend()
+    plt.show()
+
+def demonstrate_incremental_predictions_E1(n, titlestring = None):
+    connected = False
+    while not connected:
+        G = nx.erdos_renyi_graph(n, p = 0.2)
+        connected = nx.is_connected(G)
+
+    # add basic uniform weights
+    weights = {e:1 for e in G.edges()} 
+    for e in G.edges():
+        G[e[0]][e[1]]['weight'] = weights[e]
+    # identify root and goal
+    node_list = list(G.nodes())
+    r = node_list[0]
+    # pick g somewhat removed from r
+    g = node_list[-1]
+    while nx.shortest_path_length(G,source=r, target=g, weight="weight") < 3:
+        g = random.choice(node_list)
+
+
+    f = adversarial_f(G,r,g,mode='additive', E_1 = 10)
+    instance = graph_search_instance(G, f, r, g)
+    run_local_search(instance, verbose = False)
+    visited_nodes = instance.visited_nodes
+    plot_trajectory_with_predictions(visited_nodes,f,G,r, g)
+    plt.show()
+
+# for a set of visited nodes, compute the sum of d(v_i, v_i+1)
+# using true distances in G: only valid on trees/hybrid setting
+def compute_tour_cost_on_tree(G, visited_nodes):
+    cost = 0
+    for i in range(len(visited_nodes)-1):
+        cost+=nx.shortest_path_length(G,source=visited_nodes[i], target=visited_nodes[i+1], weight="weight")
+    return cost
+
+def compare_with_astar(n = 10):
+    G = build_basic_graph(n = n, type = 'random_tree')
+    # add basic uniform weights
+    weights = {e:1 for e in G.edges()} 
+    for e in G.edges():
+        G[e[0]][e[1]]['weight'] = weights[e]
+    # identify root and goal
+    node_list = list(G.nodes())
+    r = node_list[0]
+    # pick g somewhat removed from r
+    g = node_list[-1]
+    while nx.shortest_path_length(G,source=r, target=g, weight="weight") < 3:
+        g = random.choice(node_list)
+
+    f = init_f(G, g,mode='additive', E_1 = 50)
+
+    # Running A* Search
+    # set the heuristic to be the prediction function at v
+    h = lambda v, _: f[v] 
+    _, astar_visited_nodes = astar_visited(G, source = r, target = g, heuristic = h, weight = "weight")
+
+    # Running our search
+    instance = graph_search_instance(G, f, r, g)
+    run_local_search(instance, verbose = False)
+    our_visited_nodes = instance.visited_nodes
+
+    # compare trajectories
+    pos = nx.spring_layout(G)
+    _, axs = plt.subplots(1, 2)
+    plot_trajectory_with_predictions(astar_visited_nodes,f,G,r,g, ax = axs[0], pos = pos)
+    axs[0].set_title(f'A star visited nodes \n Tour cost = {compute_tour_cost_on_tree(G, astar_visited_nodes)}')
+    plot_trajectory_with_predictions(our_visited_nodes,f,G,r,g, ax = axs[1], pos = pos)
+    axs[1].set_title(f'Our visited nodes \n Tour cost = {instance.cost_to_date}')
+    # add colorbar
+    sm = plt.cm.ScalarMappable(cmap=cm.cool, norm=plt.Normalize(vmin = min(f.values()), vmax=max(f.values())))
+    sm._A = []
+    plt.colorbar(sm, shrink = 0.9)
+    plt.show()
+
+#compare_with_astar(n = 30)
+
+n = 500
+num_trials = 100
+demonstrate_random_vs_adversarial_error_multiplicative_epsilon(n = n, num_trials = num_trials, eps_list = np.linspace(0, 0.4, num = 10), titlestring = None)
+
+#demonstrate_incremental_predictions_E1(n = 20, titlestring = None)
+
+
+# n = 100
+# num_trials = 100
 # rand_vs_adversarial_titlestring = f'Impact of random versus \'challening\' E1 additive error \n {num_trials} trials with 100-node, p = 0.1 Erdos-Renyi random graphs'    
-# demonstrate_random_vs_adversarial_error_additive_E1(n = 100, num_trials = num_trials, E_1_list = [0, 5, 10, 25, 50],
+# demonstrate_random_vs_adversarial_error_additive_E1(n = n, num_trials = num_trials, E_1_list = np.linspace(0, n/2, num = 10),
 #                                                                  titlestring = rand_vs_adversarial_titlestring)
 
 
@@ -327,9 +434,9 @@ def demonstrate_random_vs_adversarial_error_additive_E1(n, num_trials, E_1_list,
 
 #construct_clique_based_k_bottleneck(n = 20, total_added_edges = 10, k = 5, verbose = True)
 
-connectivity_titlestring = 'Impact of small r-g vertex cuts on performance \n 100 trials on 100-node graphs'
-demonstrate_improvement_with_greater_connectivity(n = 100, k_list = [1, 3, 5, 10, 15], num_trials = 100, 
-                                                titlestring = connectivity_titlestring)
+# connectivity_titlestring = 'Impact of small r-g vertex cuts on performance \n 100 trials on 100-node graphs'
+# demonstrate_improvement_with_greater_connectivity(n = 100, k_list = [1, 3, 5, 10, 15], num_trials = 100, 
+#                                                 titlestring = connectivity_titlestring)
 
 # worstcase_gap_titlestring = 'Comparing worst-case bounds versus actual performance \n Random admissible E1 error for varying values of E1 \n 1000 trials with 100-node, p = 0.1 Erdos-Renyi random graphs'
 # demonstrate_random_performance_vs_predicted_UB_additive_decremental(n = 100, num_trials = 1000, E_1_list =[5, 10, 50, 90, 99], 
