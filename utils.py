@@ -296,7 +296,7 @@ def visualize_predictions(f,G,g,r):
 # -------------------------------------------------------------------
 
 def build_basic_graph(n = 100, type='erdos_renyi'):
-    if type=='erdos_renyi':
+    if type=='Erdos Renyi':
         connected = False
         while not connected:
             G = nx.erdos_renyi_graph(n, p = 0.1)
@@ -304,13 +304,23 @@ def build_basic_graph(n = 100, type='erdos_renyi'):
         # add basic uniform weights
         weights = {e:1 for e in G.edges()} 
 
-    elif type=='random_tree':
+    elif type=='Random Tree':
         G = nx.random_tree(n)
         # add basic uniform weights
         weights = {e:1 for e in G.edges()} 
 
     elif type=='tree':
         G = nx.full_rary_tree(2, 15)
+        # add basic uniform weights
+        weights = {e:1 for e in G.edges()} 
+    
+    elif type=='Circular Ladder':
+        G = nx.circular_ladder_graph(int(n/2))
+        # add basic uniform weights
+        weights = {e:1 for e in G.edges()} 
+    
+    elif type=='Random Lobster':
+        G = generate_random_lobster(n,0.5,0.75)
         # add basic uniform weights
         weights = {e:1 for e in G.edges()} 
 
@@ -357,3 +367,43 @@ def run_test():
     tester = graph_search_instance(G, f, r, g)
     run_local_search(tester, verbose = True)
     print(f"I think my search cost me: {tester.cost_to_date}")
+
+
+def generate_random_lobster(n,p1,p2):
+    # Check n is reasonable
+    largest_available_node = n
+    G = nx.Graph()
+    G.add_node(1)
+
+    number_of_vertices = 1
+    current_vertex=1
+    while number_of_vertices < n:
+
+        while np.random.uniform() < p1 and number_of_vertices < n:
+            caterpillar_leg = largest_available_node
+            largest_available_node -= 1
+            G.add_edge(current_vertex, caterpillar_leg)
+            number_of_vertices+=1
+
+            while np.random.uniform()<p2 and number_of_vertices < n:
+                G.add_edge(caterpillar_leg,largest_available_node)
+                largest_available_node-=1
+                number_of_vertices+=1
+
+        if number_of_vertices < n:
+            current_vertex+=1
+            number_of_vertices+=1
+            G.add_node(current_vertex)
+            G.add_edge(current_vertex, current_vertex-1)
+
+    return G
+
+def check_if_forest(G):
+    cycle = True
+    try:
+        nx.find_cycle(G)
+    except nx.NetworkXNoCycle as _:
+        cycle = False
+    if cycle:
+        return False
+    return True
