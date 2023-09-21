@@ -53,9 +53,10 @@ def adversarial_f(G,r,g,mode=None, epsilon = None, E_1 = None):
     return f
 
 # -------------------------------------------------------------------
-# COMPARING STRATEGIES ----------------------------------------------
+# COMMONLY USED METHODS ---------------------------------------------
 # -------------------------------------------------------------------
 
+# implement different graph search strategies on the same graph and compare their performance
 def compare_strategies(mode, graph_generator, f_generator, num_trials, min_r_g_sep = None, f_auditor = None, verbose=False):
     local_cost = list()
     weighted_local_cost = list()
@@ -99,6 +100,10 @@ def compare_strategies(mode, graph_generator, f_generator, num_trials, min_r_g_s
                     ('naive greedy search', naive_greedy_cost)]:
             print(f"Strategy {strategy_name} mean CR = {np.mean(cost_list)} +/- {np.std(cost_list)}")
     return [(np.mean(cost_list), np.std(cost_list)) for cost_list in [local_cost, weighted_local_cost, naive_greedy_cost]]
+
+# Examine impact of the same predictions on different graph families
+def compare_graph_families(graph_generator_list, num_trials, mode='absolute', verbose= False):
+    return 
 
 # -------------------------------------------------------------------
 # EXPERIMENTS -------------------------------------------------------
@@ -404,6 +409,12 @@ def compare_with_astar(n = 10):
     sm._A = []
     plt.colorbar(sm, shrink = 0.9)
     plt.show()
+
+# Main body experiments: compare impact of "typical" random error distributions on different generated instances
+def random_over_different_graph_families():
+
+    return
+
 
 #compare_with_astar(n = 30)
 
