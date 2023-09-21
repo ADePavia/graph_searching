@@ -132,12 +132,12 @@ def build_predictions_with_relative_error(G, g, error_dict):
 # -------------------------------------------------------------------
 
 def performance_vs_upperbounds(n = 100, mode="absolute"):
-    graphs = ['erdos_renyi','random_tree', 'circular_ladder']
+    graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
     # initialize an empty list for each graph family, with keys given by names of graph families
     performance_metrics = {graph:list() for graph in graphs}
     performance_metrics['upper_bound'] = list()
-    errors = [(i+1)*10 for i in range(10)]
-    number_of_trials = 100
+    errors = np.concatenate((np.linspace(10,50, num=10),np.linspace(50,90, num=15),np.linspace(90,100, num=5)))
+    number_of_trials = 1000
 
     if mode=="absolute":
         for E1 in errors:
@@ -170,17 +170,27 @@ def performance_vs_upperbounds(n = 100, mode="absolute"):
             for graph in graphs:
                 performance_metrics[graph].append( (  np.mean(trial_values[graph])  ,  np.std(trial_values[graph])  ) )
 
+    # save results to file
+    filename = f'./experiment_results/perf_vs_upperbounds_experiments_trials_{number_of_trials}_n_{n}_time_{datetime.datetime.now()}.pkl'
+    with open(filename, 'wb') as fp:
+        performance_metrics['n'] = n
+        performance_metrics['mode']=mode
+        performance_metrics['errors'] = errors
+        performance_metrics['num_trials'] = number_of_trials
+        pickle.dump(performance_metrics, fp)
+        print(f'dictionary saved successfully to {filename}')
+    
     # get list of upper bounds
     upper_bounds = performance_metrics['upper_bound']
 
     plt.figure()
     for graph in graphs:#+['upper_bound']:
         means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
-        #plt.plot(upper_bounds, means, linestyle = '-', marker = 'o', label=graph)
-        plt.errorbar(upper_bounds, means, yerr = stds, linestyle='',marker='o', capsize = 5, label=graph)
-    plt.plot(upper_bounds, upper_bounds,'--')
-    plt.yscale('symlog')
-    plt.ylabel('ALG-OPT')
+        plt.plot(upper_bounds, means, linestyle='', marker = 'o', label=graph)
+        #plt.errorbar(upper_bounds, means, yerr = stds, linestyle='',marker='o', capsize = 5, label=graph)
+        plt.yscale('symlog')
+        plt.ylabel('ALG-OPT')
+    plt.plot(np.linspace(min(upper_bounds),max(upper_bounds)), np.linspace(min(upper_bounds),max(upper_bounds)),'--')
     plt.xlabel('Upper bound')
     plt.ylim(bottom=-1)
     plt.legend()
@@ -238,5 +248,5 @@ def compare_with_astar(n = 10):
     plt.show()
 
 
-#performance_vs_upperbounds(n = 100, mode="absolute")
-random_errors_vs_graph_family(n = 100, mode="absolute")
+performance_vs_upperbounds(n = 100, mode="absolute")
+# random_errors_vs_graph_family(n = 100, mode="absolute")
