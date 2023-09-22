@@ -247,6 +247,33 @@ def compare_with_astar(n = 10):
     plt.colorbar(sm, shrink = 0.9)
     plt.show()
 
+# -------------------------------------------------------------------
+# ------------  PLOTTING FROM FILES ---------------------------------
+# -------------------------------------------------------------------
 
-performance_vs_upperbounds(n = 100, mode="absolute")
+def plot_from_file_performance_vs_upperbounds(filename):
+    file = open(filename,'rb')
+    performance_metrics = pickle.load(file)
+    file.close()
+
+    graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
+    upper_bounds = performance_metrics['upper_bound']
+
+    plt.figure()
+    for graph in graphs:#+['upper_bound']:
+        means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
+        #plt.plot(upper_bounds, means, linestyle='', marker = 'o', label=graph)
+        plt.errorbar(upper_bounds, means, yerr = stds, linestyle='',marker='o', capsize = 5, label=graph)
+        plt.yscale('symlog')
+        plt.ylabel('ALG-OPT')
+    plt.plot(np.linspace(min(upper_bounds),max(upper_bounds)), np.linspace(min(upper_bounds),max(upper_bounds)),'--')
+    plt.xlabel('Upper bound')
+    plt.ylim(bottom=-1)
+    plt.legend()
+    plt.show()
+
+
+plot_from_file_performance_vs_upperbounds('./experiment_results/perf_vs_upperbounds_experiments_trials_1000_n_100_time_2023-09-21 14:54:48.422505.pkl')
+
+#performance_vs_upperbounds(n = 100, mode="absolute")
 # random_errors_vs_graph_family(n = 100, mode="absolute")
