@@ -2,4 +2,8 @@
 This repository contains the code necessary to run the experiments in the paper "Learning-Based Algorithms for Graph Searching Problems" as submitted to the AISTATS 2024.
 
 
- 
+Figure 3, containing a visual comparison of our algorithms with $A^*$ was generated using the code in ...
+
+Figure 2, containing empirical evaluations of the algorithms in the paper was generated using code in ...
+
+One may generate similar figures by...
