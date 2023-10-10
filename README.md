@@ -2,9 +2,9 @@
 This repository contains the code necessary to run the experiments in the paper "Learning-Based Algorithms for Graph Searching Problems" as submitted to the AISTATS 2024.
 
 Three files are included:
-  - ``utils.py``: contains basic objects and methods for defining graph search problems and running algorithms from the paper
-  - ``experiments.py``: uses methods from ``utils.py`` to implement the experiments outlined in the paper
-  - ``modified_astar.py``: contains a modified version of networkx's (open source) implementation of the A* search algorithm
+  - ``utils.py``: contains basic objects and methods for defining graph search problems and running algorithms from the paper.
+  - ``experiments.py``: uses methods from ``utils.py`` to implement the experiments outlined in the paper.
+  - ``modified_astar.py``: contains a modified version of networkx's (open source) implementation of the A* search algorithm.
 
 ``utils.py`` and ``experiments.py`` require the following Python packages as dependencies: numpy, networkx, matplotlib, and scipy. ``modified_astar.py`` requires networkx.
 
