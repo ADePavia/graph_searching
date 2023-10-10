@@ -264,7 +264,6 @@ def plot_from_file_random_errors_vs_graphtype(filename):
         plt.xlabel('epsilon')
         plt.ylim(bottom=0.9)
     plt.legend(loc='upper left')
-    plt.savefig("Figure_2_"+performance_metrics['mode']+".svg")
     plt.show()
 
 def table_from_file_performance_vs_upperbounds(filename):
@@ -310,5 +309,5 @@ def table_from_file_performance_vs_upperbounds(filename):
 # plot_from_file_random_errors_vs_graphtype(filename)
 
 # # Reproduce Figure 2, Right, from provided data
-filename = './data_for_figures/fig_2_relative.pkl'
-plot_from_file_random_errors_vs_graphtype(filename)
+# filename = './data_for_figures/fig_2_relative.pkl'
+# plot_from_file_random_errors_vs_graphtype(filename)
