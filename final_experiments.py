@@ -1,5 +1,7 @@
 import numpy as np
 import networkx as nx
+import matplotlib
+#matplotlib.rcParams['text.usetex'] = True
 import matplotlib.pyplot as plt
 from scipy.stats import truncnorm
 import datetime
@@ -8,6 +10,7 @@ import pickle
 import random
 import copy
 import pdb
+from tqdm import tqdm
 
 from utils import graph_search_instance, init_f, visualize_predictions, plot_trajectory_with_predictions, build_basic_graph,\
     audit_predictions, run_local_search, run_weighted_local_search, run_random_search, run_naive_greedy_search
@@ -56,8 +59,12 @@ def random_errors_vs_graph_family(n = 100, mode="absolute"):
                 trial_instance = graph_search_instance( G, f, r, g)
                 opt = nx.shortest_path_length(trial_instance.G,source=r, target=g, weight="weight")
 
-                # Run search on graph with error and record performance
-                run_local_search(trial_instance, verbose = False)
+                # Run the appropriate search strategy on graph and record performance
+                if mode=="absolute":
+                    run_local_search(trial_instance, verbose = False)
+                elif mode=="relative":
+                    run_weighted_local_search(trial_instance, verbose = False)
+
                 if mode=="absolute":
                     trial_values[graph].append(trial_instance.cost_to_date - opt)
                 if mode=="relative":
@@ -69,7 +76,7 @@ def random_errors_vs_graph_family(n = 100, mode="absolute"):
             performance_metrics['upper_bound'].append( (  np.mean(trial_values['upper_bound'])  ,  np.std(trial_values['upper_bound'])  ) )
 
     # save results to file
-    filename = f'./experiment_results/experiments_trials:{number_of_trials}_n:{n}_time:{datetime.datetime.now()}.pkl'
+    filename = f'./experiment_results/rand_errors_by_graphtype_experiments_mode={mode}_trials={number_of_trials}_n={n}_time={datetime.datetime.now()}.pkl'
     with open(filename, 'wb') as fp:
         performance_metrics['n'] = n
         performance_metrics['mode']=mode
@@ -93,10 +100,11 @@ def random_errors_vs_graph_family(n = 100, mode="absolute"):
 
         #plt.yscale('symlog')
         plt.ylabel('ALG-OPT')
+        plt.ylim(bottom=-1)
     elif mode=="relative":
         plt.ylabel('ALG/OPT')
+        plt.ylim(bottom=0.9)
     plt.xlabel('Error measure')
-    plt.ylim(bottom=-1)
     plt.legend(loc='upper left')
     plt.show()
     
@@ -126,6 +134,67 @@ def build_predictions_with_relative_error(G, g, error_dict):
     distances = nx.shortest_path_length(G,target=g)
     return {v:(1+error_dict[idx])*distances[v] for idx,v in enumerate(G.nodes())}
      
+# -------------------------------------------------------------------
+# ------------  PERFORMANCE VS UPPERBOUND TABLE ----------------------
+# -------------------------------------------------------------------
+
+def performance_vs_upperbounds_table(n = 100, num_trials = 100, mode="absolute"):
+    graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
+    performance_metrics = {graph:list() for graph in graphs}
+    performance_metrics['upper_bound'] = list()
+    errors = np.linspace(10,2*n, num=20)
+    number_of_trials = num_trials
+
+    if mode=="absolute":
+        for E1 in tqdm(errors):
+            trial_values = {graph:list() for graph in graphs}
+            signed_partition = build_absolute_errors(n, E1)
+            # compute upperbound
+            upperbound_for_sampled_errors = compute_absolute_upperbound(signed_partition)
+            performance_metrics['upper_bound'].append(upperbound_for_sampled_errors)
+            for _ in range(number_of_trials):
+                # randomly shuffle the partition
+                signed_errors = list(signed_partition.values())
+                # randomly permute in-place
+                random.shuffle(signed_errors)
+                shuffled_errors = {v:signed_errors[v] for v in range(n)}
+
+                for graph in graphs:
+                    G = build_basic_graph(n, graph)
+                    # pick goal node g
+                    node_list = list(G.nodes())
+                    r, g = random.sample(node_list, k=2)
+                    f = build_predictions_with_absolute_error(G, g, shuffled_errors)
+                    trial_instance = graph_search_instance( G, f, r, g)
+                    opt = nx.shortest_path_length(trial_instance.G,source=r, target=g, weight="weight")
+
+                    # Run search on graph with error and record performance
+                    run_local_search(trial_instance, verbose = False)
+                    trial_values[graph].append((trial_instance.cost_to_date - opt)/upperbound_for_sampled_errors)
+            for graph in graphs:
+                performance_metrics[graph].append( (  np.mean(trial_values[graph])  ,  np.std(trial_values[graph])  ) )
+
+    # save results to file
+    filename = f'./experiment_results/perf_vs_upperbounds_table_trials_{number_of_trials}_n_{n}_time_{datetime.datetime.now()}.pkl'
+    with open(filename, 'wb') as fp:
+        performance_metrics['n'] = n
+        performance_metrics['mode']=mode
+        performance_metrics['errors'] = errors
+        performance_metrics['num_trials'] = number_of_trials
+        pickle.dump(performance_metrics, fp)
+        print(f'dictionary saved successfully to {filename}')
+
+    plt.figure()
+    for graph in graphs:#+['upper_bound']:
+        means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
+        #plt.plot(errors, means, linestyle='', marker = 'o', label=graph)
+        plt.errorbar(errors, means, yerr = stds, linestyle='',marker='o', capsize = 5, label=graph)
+        #plt.yscale('symlog')
+        plt.ylabel('ALG-OPT/Upperbound')
+    plt.xlabel('Value of E1')
+    #plt.ylim(bottom=-1)
+    plt.legend()
+    plt.show()
 
 # -------------------------------------------------------------------
 # ------------  PERFORMANCE VS UPPERBOUND PLOT ----------------------
@@ -136,6 +205,7 @@ def performance_vs_upperbounds(n = 100, mode="absolute"):
     # initialize an empty list for each graph family, with keys given by names of graph families
     performance_metrics = {graph:list() for graph in graphs}
     performance_metrics['upper_bound'] = list()
+    # sample errors with increasing density at higher values
     errors = np.concatenate((np.linspace(10,50, num=10),np.linspace(50,90, num=15),np.linspace(90,100, num=5)))
     number_of_trials = 1000
 
@@ -251,6 +321,46 @@ def compare_with_astar(n = 10):
 # ------------  PLOTTING FROM FILES ---------------------------------
 # -------------------------------------------------------------------
 
+def plot_from_file_random_errors_vs_graphtype(filename):
+    file = open(filename,'rb')
+    performance_metrics = pickle.load(file)
+    file.close()
+
+    graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
+
+    # plotting
+    plt.figure(figsize = (9,6))
+    for graph in graphs:
+        means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
+        plt.errorbar(performance_metrics['errors'], means, yerr = stds,marker='o', capsize = 5, label=graph)
+        plt.fill_between(performance_metrics['errors'], np.subtract(means, stds), np.add(means, stds), alpha = 0.5)
+    if performance_metrics['mode']=="absolute":
+        plt.ylabel('ALG-OPT')
+        plt.xlabel('E_1')
+        #plt.ylabel(r'$\mathcal{E}_1$')
+        plt.ylim(bottom=-1)
+    elif performance_metrics['mode']=="relative":
+        plt.ylabel('ALG/OPT')
+        plt.xlabel('epsilon')
+        plt.ylim(bottom=0.9)
+    plt.legend(loc='upper left')
+    plt.show()
+
+def table_from_file_performance_vs_upperbounds(filename):
+    file = open(filename,'rb')
+    performance_metrics = pickle.load(file)
+    file.close()
+
+    graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
+    upper_bounds = performance_metrics['upper_bound']
+
+    for graph in graphs:
+        means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
+        max_mean = max(means)
+        std_of_max_mean = stds[means.index(max_mean)]
+        print(f'{graph} graph has maximum alg-opt/upperbound = {max_mean} +/- {std_of_max_mean}')
+    return
+
 def plot_from_file_performance_vs_upperbounds(filename):
     file = open(filename,'rb')
     performance_metrics = pickle.load(file)
@@ -260,9 +370,8 @@ def plot_from_file_performance_vs_upperbounds(filename):
     upper_bounds = performance_metrics['upper_bound']
 
     plt.figure()
-    for graph in graphs:#+['upper_bound']:
+    for graph in graphs:
         means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
-        #plt.plot(upper_bounds, means, linestyle='', marker = 'o', label=graph)
         plt.errorbar(upper_bounds, means, yerr = stds, linestyle='',marker='o', capsize = 5, label=graph)
         plt.yscale('symlog')
         plt.ylabel('ALG-OPT')
@@ -272,8 +381,14 @@ def plot_from_file_performance_vs_upperbounds(filename):
     plt.legend()
     plt.show()
 
+# table: upperbounds versus algorithmic cost
+filename='./data_for_figures/table_2.pkl'
+table_from_file_performance_vs_upperbounds(filename)
 
-plot_from_file_performance_vs_upperbounds('./experiment_results/perf_vs_upperbounds_experiments_trials_1000_n_100_time_2023-09-21 14:54:48.422505.pkl')
+# random errors versus graph family: absolute regime
+filename = './data_for_figures/fig_2_absolute.pkl'
+plot_from_file_random_errors_vs_graphtype(filename)
 
-#performance_vs_upperbounds(n = 100, mode="absolute")
-# random_errors_vs_graph_family(n = 100, mode="absolute")
+# random errors versus graph family: relative regime
+filename = './data_for_figures/fig_2_relative.pkl'
+plot_from_file_random_errors_vs_graphtype(filename)
