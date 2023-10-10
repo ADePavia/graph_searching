@@ -1,15 +1,15 @@
 import numpy as np
 import networkx as nx
 import matplotlib
+matplotlib.rcParams.update(matplotlib.rcParamsDefault)
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from scipy.stats import truncnorm
 import datetime
 import pickle
 
-import random
-import copy
 import pdb
+import random
 from tqdm import tqdm
 
 from utils import graph_search_instance, init_f, plot_trajectory_with_predictions, build_basic_graph,\
@@ -249,6 +249,7 @@ def plot_from_file_random_errors_vs_graphtype(filename):
     graphs = ['Random Lobster','Erdos Renyi','Random Tree', 'Circular Ladder']
 
     # plotting
+    matplotlib.rcParams.update({'font.size': 16})
     plt.figure(figsize = (9,6))
     for graph in graphs:
         means, stds = [list(tup) for tup in zip(*performance_metrics[graph])]
@@ -263,6 +264,7 @@ def plot_from_file_random_errors_vs_graphtype(filename):
         plt.xlabel('epsilon')
         plt.ylim(bottom=0.9)
     plt.legend(loc='upper left')
+    plt.savefig("Figure_2_"+performance_metrics['mode']+".svg")
     plt.show()
 
 def table_from_file_performance_vs_upperbounds(filename):
@@ -308,5 +310,5 @@ def table_from_file_performance_vs_upperbounds(filename):
 # plot_from_file_random_errors_vs_graphtype(filename)
 
 # # Reproduce Figure 2, Right, from provided data
-# filename = './data_for_figures/fig_2_relative.pkl'
-# plot_from_file_random_errors_vs_graphtype(filename)
+filename = './data_for_figures/fig_2_relative.pkl'
+plot_from_file_random_errors_vs_graphtype(filename)
