@@ -12,6 +12,6 @@ All figures and tables reported in the paper were created using code in ``experi
 
 The data summarized in Figure 2 and Table 2 are contained in the folder data_for_figures.
 
-Code for exactly recreating Figure 2 and Table 2 can be found at the bottom of ``experiments.py``. Uncommenting lines 305-314 will generate exact reproductions using the data in data_for_figures.
+Code for exactly recreating Figure 2 and Table 2 can be found at the bottom of ``experiments.py``. Uncommenting lines 499-513 will generate exact reproductions using the data in data_for_figures.
 
-Code for runing new experiments and creating new visualizations in the style of Figure 2 is also included. Uncommenting lines 288-297 will give an example of calling methods from ``experiments.py``.
+Code for runing new experiments and creating new visualizations in the style of Figure 2 is also included. Uncommenting lines 482-493 will give an example of calling methods from ``experiments.py``.
